@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parakeet — Voice AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a24;
+    --border: rgba(255,255,255,0.07);
+    --text: #f0ede8;
+    --muted: rgba(240,237,232,0.4);
+    --accent: #7effd4;
+    --accent2: #b8a9ff;
+    --accent3: #ff9f7e;
+    --danger: #ff6b6b;
+    --glow: rgba(126,255,212,0.15);
+    --radius: 16px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated grain */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.5;
+  }
+
+  /* Background orbs */
+  .bg-orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(80px);
+    pointer-events: none;
+    animation: drift 12s ease-in-out infinite alternate;
+  }
+  .bg-orb-1 { width: 500px; height: 500px; background: rgba(126,255,212,0.05); top: -100px; right: -100px; }
+  .bg-orb-2 { width: 400px; height: 400px; background: rgba(184,169,255,0.05); bottom: -50px; left: -80px; animation-delay: -4s; }
+  .bg-orb-3 { width: 300px; height: 300px; background: rgba(255,159,126,0.04); top: 40%; left: 40%; animation-delay: -8s; }
+  @keyframes drift { from { transform: translate(0,0) scale(1); } to { transform: translate(30px,20px) scale(1.05); } }
+
+  /* Layout */
+  .app {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    grid-template-rows: 56px 1fr;
+    height: 100vh;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  .header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,10,15,0.8);
+    backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: 18px; letter-spacing: -0.5px;
+  }
+  .logo-icon {
+    width: 28px; height: 28px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  .status-bar {
+    display: flex; align-items: center; gap: 20px;
+    font-size: 11px; color: var(--muted);
+  }
+  .status-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #555; display: inline-block; margin-right: 6px;
+    transition: background 0.3s;
+  }
+  .status-dot.online { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .status-dot.error { background: var(--danger); }
+
+  /* Sidebar */
+  .sidebar {
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    display: flex; flex-direction: column;
+    padding: 16px;
+    gap: 8px;
+    overflow-y: auto;
+  }
+  .sidebar-label {
+    font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--muted); padding: 8px 4px 4px;
+  }
+  .model-select-wrap {
+    position: relative;
+  }
+  .model-select {
+    width: 100%; padding: 10px 12px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 10px;
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    appearance: none; cursor: pointer; outline: none;
+    transition: border-color 0.2s;
+  }
+  .model-select:hover { border-color: rgba(255,255,255,0.15); }
+  .model-select:focus { border-color: var(--accent); }
+
+  .param-group { display: flex; flex-direction: column; gap: 4px; }
+  .param-label {
+    font-size: 10px; color: var(--muted); display: flex;
+    justify-content: space-between;
+  }
+  .param-label span { color: var(--accent); }
+  .slider {
+    -webkit-appearance: none; width: 100%; height: 3px;
+    background: var(--surface2); border-radius: 2px; outline: none;
+  }
+  .slider::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px;
+    border-radius: 50%; background: var(--accent); cursor: pointer;
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 8px rgba(126,255,212,0.4);
+  }
+
+  .sidebar-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px; border-radius: 10px;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); font-family: 'DM Mono', monospace;
+    font-size: 11px; cursor: pointer; transition: all 0.2s;
+    text-align: left;
+  }
+  .sidebar-btn:hover { background: var(--surface2); color: var(--text); border-color: rgba(255,255,255,0.12); }
+  .sidebar-btn.active { background: rgba(126,255,212,0.08); color: var(--accent); border-color: rgba(126,255,212,0.2); }
+  .sidebar-btn .icon { font-size: 14px; }
+
+  /* System prompt */
+  .system-textarea {
+    width: 100%; padding: 10px 12px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 10px;
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    resize: vertical; min-height: 80px; outline: none;
+    line-height: 1.5; transition: border-color 0.2s;
+  }
+  .system-textarea:focus { border-color: var(--accent2); }
+
+  /* Chat area */
+  .chat-area {
+    display: flex; flex-direction: column;
+    height: calc(100vh - 56px);
+  }
+  .messages {
+    flex: 1; overflow-y: auto; padding: 24px;
+    display: flex; flex-direction: column; gap: 20px;
+    scroll-behavior: smooth;
+  }
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Empty state */
+  .empty-state {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 16px; color: var(--muted); text-align: center;
+    padding: 40px;
+  }
+  .empty-icon {
+    font-size: 48px; opacity: 0.3;
+    animation: float 3s ease-in-out infinite;
+  }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+  .empty-state h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 28px; color: var(--text); opacity: 0.5;
+  }
+  .empty-state p { font-size: 12px; max-width: 300px; line-height: 1.6; }
+
+  /* Suggestions */
+  .suggestions {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    justify-content: center; margin-top: 8px;
+  }
+  .suggestion-chip {
+    padding: 7px 14px; border-radius: 20px;
+    border: 1px solid var(--border);
+    font-size: 11px; color: var(--muted);
+    cursor: pointer; transition: all 0.2s;
+    background: transparent; font-family: 'DM Mono', monospace;
+  }
+  .suggestion-chip:hover {
+    background: var(--surface2); color: var(--text);
+    border-color: var(--accent2); transform: translateY(-1px);
+  }
+
+  /* Messages */
+  .message {
+    display: flex; gap: 12px; animation: msgIn 0.3s ease;
+    max-width: 800px;
+  }
+  @keyframes msgIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .message.user { flex-direction: row-reverse; align-self: flex-end; }
+  .message.assistant { align-self: flex-start; }
+
+  .msg-avatar {
+    width: 32px; height: 32px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0;
+  }
+  .message.user .msg-avatar { background: linear-gradient(135deg, var(--accent2), var(--accent3)); }
+  .message.assistant .msg-avatar { background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+
+  .msg-content {
+    max-width: calc(100% - 44px);
+  }
+  .msg-role {
+    font-size: 10px; color: var(--muted); letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .message.user .msg-role { text-align: right; }
+
+  .msg-bubble {
+    padding: 12px 16px; border-radius: 14px;
+    font-size: 13px; line-height: 1.7;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .message.user .msg-bubble {
+    background: var(--surface2);
+    border: 1px solid rgba(184,169,255,0.15);
+    border-top-right-radius: 4px;
+  }
+  .message.assistant .msg-bubble {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top-left-radius: 4px;
+  }
+
+  /* Code blocks inside messages */
+  .msg-bubble code {
+    font-family: 'DM Mono', monospace;
+    background: rgba(126,255,212,0.08);
+    padding: 1px 5px; border-radius: 4px;
+    font-size: 12px; color: var(--accent);
+  }
+  .msg-bubble pre {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px; margin: 8px 0;
+    overflow-x: auto; font-size: 12px;
+  }
+  .msg-bubble pre code { background: none; padding: 0; }
+
+  /* Voice transcript badge */
+  .transcript-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 9px; color: var(--accent);
+    background: rgba(126,255,212,0.08);
+    border: 1px solid rgba(126,255,212,0.15);
+    padding: 2px 8px; border-radius: 20px; margin-bottom: 5px;
+  }
+
+  /* Thinking indicator */
+  .thinking {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 14px;
+    border-top-left-radius: 4px; font-size: 12px;
+    color: var(--muted);
+  }
+  .thinking-dots {
+    display: flex; gap: 4px;
+  }
+  .thinking-dots span {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--accent); opacity: 0.4;
+    animation: blink 1.2s ease-in-out infinite;
+  }
+  .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%,80%,100%{opacity:0.3} 40%{opacity:1} }
+
+  /* Input area */
+  .input-area {
+    padding: 16px 24px 20px;
+    border-top: 1px solid var(--border);
+    background: rgba(10,10,15,0.6);
+    backdrop-filter: blur(12px);
+  }
+
+  /* Voice visualizer */
+  .voice-visualizer {
+    height: 48px; display: none; align-items: center;
+    justify-content: center; gap: 3px; margin-bottom: 12px;
+  }
+  .voice-visualizer.active { display: flex; }
+  .viz-bar {
+    width: 3px; border-radius: 2px;
+    background: var(--accent);
+    animation: viz 0.8s ease-in-out infinite alternate;
+    min-height: 4px;
+  }
+  .viz-bar:nth-child(1) { animation-delay: 0s; }
+  .viz-bar:nth-child(2) { animation-delay: 0.1s; }
+  .viz-bar:nth-child(3) { animation-delay: 0.2s; }
+  .viz-bar:nth-child(4) { animation-delay: 0.3s; }
+  .viz-bar:nth-child(5) { animation-delay: 0.4s; }
+  .viz-bar:nth-child(6) { animation-delay: 0.3s; }
+  .viz-bar:nth-child(7) { animation-delay: 0.2s; }
+  .viz-bar:nth-child(8) { animation-delay: 0.1s; }
+  .viz-bar:nth-child(9) { animation-delay: 0s; }
+  @keyframes viz { from { height: 4px; } to { height: 36px; } }
+
+  .voice-status {
+    text-align: center; font-size: 11px;
+    color: var(--accent); margin-bottom: 8px;
+    display: none;
+  }
+  .voice-status.active { display: block; }
+
+  .input-row {
+    display: flex; align-items: flex-end; gap: 10px;
+  }
+  .input-wrapper {
+    flex: 1; position: relative;
+  }
+  #chat-input {
+    width: 100%; padding: 13px 16px; padding-right: 44px;
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); border-radius: 12px;
+    font-family: 'DM Mono', monospace; font-size: 13px;
+    outline: none; resize: none; min-height: 48px; max-height: 180px;
+    line-height: 1.5; transition: border-color 0.2s;
+    overflow-y: auto;
+  }
+  #chat-input:focus { border-color: rgba(255,255,255,0.15); }
+  #chat-input::placeholder { color: var(--muted); }
+
+  .input-action {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); font-size: 16px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s; flex-shrink: 0;
+  }
+  .input-action:hover { background: var(--surface2); color: var(--text); border-color: rgba(255,255,255,0.12); }
+  .input-action.primary {
+    background: var(--accent); color: var(--bg);
+    border-color: var(--accent);
+  }
+  .input-action.primary:hover { background: #5fffc5; transform: scale(1.03); }
+  .input-action.primary:disabled { background: var(--surface2); color: var(--muted); border-color: var(--border); transform: none; cursor: not-allowed; }
+  .input-action.recording {
+    background: var(--danger); color: white;
+    border-color: var(--danger);
+    animation: pulse-rec 1s ease-in-out infinite;
+  }
+  @keyframes pulse-rec { 0%,100%{box-shadow:0 0 0 0 rgba(255,107,107,0.4)} 50%{box-shadow:0 0 0 8px rgba(255,107,107,0)} }
+
+  /* Whisper config */
+  .whisper-config {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 10px; font-size: 10px; color: var(--muted);
+  }
+  .whisper-config input {
+    flex: 1; padding: 5px 10px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px;
+    font-family: 'DM Mono', monospace; font-size: 10px; outline: none;
+  }
+  .whisper-config input:focus { border-color: var(--accent2); }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); padding: 10px 20px; border-radius: 10px;
+    font-size: 12px; z-index: 1000; opacity: 0;
+    transition: all 0.3s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.error { border-color: var(--danger); color: var(--danger); }
+  .toast.success { border-color: var(--accent); color: var(--accent); }
+
+  /* Connection modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(6px); z-index: 200;
+    display: none; align-items: center; justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 32px; max-width: 480px; width: 90%;
+  }
+  .modal h2 {
+    font-family: 'Syne', sans-serif; font-weight: 700;
+    font-size: 20px; margin-bottom: 8px;
+  }
+  .modal p { font-size: 12px; color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
+  .modal-input {
+    width: 100%; padding: 11px 14px;
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); border-radius: 10px;
+    font-family: 'DM Mono', monospace; font-size: 13px; outline: none;
+    margin-bottom: 10px; transition: border-color 0.2s;
+  }
+  .modal-input:focus { border-color: var(--accent); }
+  .modal-label { font-size: 10px; color: var(--muted); margin-bottom: 5px; display: block; }
+  .modal-btn {
+    width: 100%; padding: 12px;
+    background: var(--accent); color: var(--bg);
+    border: none; border-radius: 10px;
+    font-family: 'Syne', sans-serif; font-weight: 700;
+    font-size: 13px; cursor: pointer; transition: all 0.2s; margin-top: 12px;
+  }
+  .modal-btn:hover { background: #5fffc5; transform: scale(1.01); }
+  .modal-btn.secondary {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); margin-top: 8px;
+    font-weight: 400;
+  }
+  .modal-btn.secondary:hover { color: var(--text); background: var(--surface2); transform: none; }
+  .modal-code {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 11px; color: var(--accent); margin: 10px 0;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* Scrollbar custom */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  @media (max-width: 640px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: 56px 1fr; }
+    .sidebar { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-orb bg-orb-1"></div>
+<div class="bg-orb bg-orb-2"></div>
+<div class="bg-orb bg-orb-3"></div>
+
+<div class="app" id="app">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">
+      <div class="logo-icon">🦜</div>
+      Parakeet
+      <span style="font-size:11px;font-family:'DM Mono';font-weight:400;color:var(--muted);margin-left:4px">/ local AI</span>
+    </div>
+    <div class="status-bar">
+      <span><span class="status-dot" id="ollama-dot"></span><span id="ollama-status">Conectando Ollama...</span></span>
+      <span><span class="status-dot" id="whisper-dot"></span><span id="whisper-status">Whisper listo</span></span>
+      <button onclick="showSettings()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:'DM Mono'">⚙ config</button>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-label">Modelo</div>
+    <div class="model-select-wrap">
+      <select class="model-select" id="model-select">
+        <option value="">Cargando modelos...</option>
+      </select>
+    </div>
+
+    <div class="sidebar-label" style="margin-top:8px">Parámetros</div>
+    <div class="param-group">
+      <div class="param-label">temperatura <span id="temp-val">0.7</span></div>
+      <input type="range" class="slider" id="temp-slider" min="0" max="2" step="0.1" value="0.7" oninput="document.getElementById('temp-val').textContent=this.value">
+    </div>
+    <div class="param-group">
+      <div class="param-label">top_p <span id="topp-val">0.9</span></div>
+      <input type="range" class="slider" id="topp-slider" min="0" max="1" step="0.05" value="0.9" oninput="document.getElementById('topp-val').textContent=this.value">
+    </div>
+    <div class="param-group">
+      <div class="param-label">max tokens <span id="tok-val">2048</span></div>
+      <input type="range" class="slider" id="tok-slider" min="128" max="8192" step="128" value="2048" oninput="document.getElementById('tok-val').textContent=this.value">
+    </div>
+
+    <div class="sidebar-label" style="margin-top:8px">Sistema</div>
+    <textarea class="system-textarea" id="system-prompt" placeholder="Eres un asistente útil y conciso...">Eres un asistente de IA útil, preciso y conciso. Respondes en el mismo idioma que el usuario.</textarea>
+
+    <div class="sidebar-label" style="margin-top:8px">Conversación</div>
+    <button class="sidebar-btn" onclick="clearChat()"><span class="icon">🗑</span> Limpiar chat</button>
+    <button class="sidebar-btn" onclick="exportChat()"><span class="icon">💾</span> Exportar JSON</button>
+    <button class="sidebar-btn" onclick="copyLast()"><span class="icon">📋</span> Copiar último</button>
+
+    <div style="flex:1"></div>
+    <div style="font-size:9px;color:var(--muted);text-align:center;padding:8px;border-top:1px solid var(--border)">
+      Ollama · Whisper · Local
+    </div>
+  </aside>
+
+  <!-- Chat -->
+  <main class="chat-area">
+    <div class="messages" id="messages">
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">🦜</div>
+        <h2>Parakeet AI</h2>
+        <p>Habla o escribe para comenzar. Conectado a tu Ollama local con transcripción por voz.</p>
+        <div class="suggestions">
+          <button class="suggestion-chip" onclick="sendSuggestion('¿Qué puedes hacer?')">¿Qué puedes hacer?</button>
+          <button class="suggestion-chip" onclick="sendSuggestion('Escríbeme un poema corto')">Escríbeme un poema</button>
+          <button class="suggestion-chip" onclick="sendSuggestion('Explícame qué es una red neuronal')">Redes neuronales</button>
+          <button class="suggestion-chip" onclick="sendSuggestion('Dame ideas para un proyecto de IA local')">Proyectos IA local</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="whisper-config">
+        <span>🎙 Whisper:</span>
+        <input type="text" id="whisper-url" placeholder="http://localhost:9000/asr (opcional)" title="URL de tu servidor Whisper">
+        <span style="color:var(--surface2)">|</span>
+        <span>Web Speech como fallback</span>
+      </div>
+      <div class="voice-visualizer" id="voice-viz">
+        <div class="viz-bar"></div><div class="viz-bar"></div><div class="viz-bar"></div>
+        <div class="viz-bar"></div><div class="viz-bar"></div><div class="viz-bar"></div>
+        <div class="viz-bar"></div><div class="viz-bar"></div><div class="viz-bar"></div>
+      </div>
+      <div class="voice-status" id="voice-status">🔴 Grabando... habla ahora</div>
+      <div class="input-row">
+        <button class="input-action" id="mic-btn" onclick="toggleRecording()" title="Grabar voz">🎙</button>
+        <div class="input-wrapper">
+          <textarea id="chat-input" placeholder="Escribe un mensaje o usa el micrófono..." rows="1"
+            onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        </div>
+        <button class="input-action primary" id="send-btn" onclick="sendMessage()">↑</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal">
+    <h2>⚙ Configuración</h2>
+    <p>Ajusta la conexión a Ollama y Whisper.</p>
+
+    <label class="modal-label">URL de Ollama</label>
+    <input class="modal-input" type="text" id="ollama-url-input" value="http://localhost:11434" placeholder="http://localhost:11434">
+
+    <label class="modal-label" style="margin-top:12px">Servidor Whisper (opcional)</label>
+    <input class="modal-input" type="text" id="whisper-url-input" placeholder="http://localhost:9000">
+
+    <div class="modal-code">
+      # Iniciar Whisper como servidor:<br>
+      pip install faster-whisper flask<br>
+      python whisper_server.py
+    </div>
+
+    <p style="margin:0;font-size:11px;color:var(--muted)">
+      Si Ollama está en otra máquina, usa su IP.<br>
+      El CORS debe estar habilitado: <code style="color:var(--accent)">OLLAMA_ORIGINS=*</code>
+    </p>
+
+    <button class="modal-btn" onclick="applySettings()">Conectar</button>
+    <button class="modal-btn secondary" onclick="closeSettings()">Cancelar</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ──────────────────────────────────
+//  State
+// ──────────────────────────────────
+let OLLAMA_BASE = localStorage.getItem('ollama_url') || 'http://localhost:11434';
+let WHISPER_URL = localStorage.getItem('whisper_url') || 'http://localhost:9000/asr';
+let history = [];
+let isStreaming = false;
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+let recognition = null;
+
+document.getElementById('ollama-url-input').value = OLLAMA_BASE;
+// Auto-fill Whisper URL so it works out of the box with start.bat
+document.getElementById('whisper-url').value = WHISPER_URL;
+document.getElementById('whisper-url-input').value = WHISPER_URL;
+
+// ──────────────────────────────────
+//  Ollama connection
+// ──────────────────────────────────
+async function checkOllama() {
+  const dot = document.getElementById('ollama-dot');
+  const status = document.getElementById('ollama-status');
+  try {
+    const res = await fetch(`${OLLAMA_BASE}/api/tags`, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    dot.className = 'status-dot online';
+    status.textContent = `Ollama online`;
+    populateModels(data.models || []);
+    return true;
+  } catch {
+    dot.className = 'status-dot error';
+    status.textContent = 'Ollama offline';
+    document.getElementById('model-select').innerHTML = '<option value="">Sin conexión</option>';
+    return false;
+  }
+}
+
+function populateModels(models) {
+  const sel = document.getElementById('model-select');
+  if (!models.length) {
+    sel.innerHTML = '<option value="">Sin modelos</option>';
+    return;
+  }
+  sel.innerHTML = models.map(m =>
+    `<option value="${m.name}">${m.name}</option>`
+  ).join('');
+}
+
+// ──────────────────────────────────
+//  Streaming chat
+// ──────────────────────────────────
+async function sendMessage(text) {
+  const input = document.getElementById('chat-input');
+  const msg = (text || input.value).trim();
+  if (!msg || isStreaming) return;
+
+  const model = document.getElementById('model-select').value;
+  if (!model || model === 'Sin conexión') {
+    showToast('Conecta Ollama primero', 'error');
+    return;
+  }
+
+  input.value = '';
+  autoResize(input);
+  hideEmptyState();
+  isStreaming = true;
+  document.getElementById('send-btn').disabled = true;
+
+  appendMessage('user', msg);
+
+  history.push({ role: 'user', content: msg });
+
+  const thinkEl = appendThinking();
+
+  const system = document.getElementById('system-prompt').value.trim();
+  const messages = system
+    ? [{ role: 'system', content: system }, ...history]
+    : [...history];
+
+  const body = {
+    model,
+    messages,
+    stream: true,
+    options: {
+      temperature: parseFloat(document.getElementById('temp-slider').value),
+      top_p: parseFloat(document.getElementById('topp-slider').value),
+      num_predict: parseInt(document.getElementById('tok-slider').value),
+    }
+  };
+
+  try {
+    const res = await fetch(`${OLLAMA_BASE}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    thinkEl.remove();
+    let assistantEl = appendMessage('assistant', '');
+    let fullText = '';
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n').filter(l => l.trim());
+      for (const line of lines) {
+        try {
+          const data = JSON.parse(line);
+          if (data.message?.content) {
+            fullText += data.message.content;
+            assistantEl.querySelector('.msg-bubble').innerHTML = formatMessage(fullText);
+            scrollToBottom();
+          }
+        } catch {}
+      }
+    }
+
+    history.push({ role: 'assistant', content: fullText });
+
+  } catch (err) {
+    thinkEl?.remove();
+    appendMessage('assistant', `⚠ Error: ${err.message}\n\nVerifica que Ollama esté corriendo en ${OLLAMA_BASE}`);
+    showToast('Error al conectar con Ollama', 'error');
+  }
+
+  isStreaming = false;
+  document.getElementById('send-btn').disabled = false;
+}
+
+function formatMessage(text) {
+  // Simple code block formatting
+  text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) =>
+    `<pre><code>${escapeHtml(code.trim())}</code></pre>`
+  );
+  text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+  text = text.replace(/\n/g, '<br>');
+  return text;
+}
+
+function escapeHtml(t) {
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ──────────────────────────────────
+//  DOM helpers
+// ──────────────────────────────────
+function hideEmptyState() {
+  const es = document.getElementById('empty-state');
+  if (es) es.remove();
+}
+
+function appendMessage(role, content, isVoice = false) {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = `message ${role}`;
+  div.innerHTML = `
+    <div class="msg-avatar">${role === 'user' ? '👤' : '🦜'}</div>
+    <div class="msg-content">
+      ${isVoice ? '<div class="transcript-badge">🎙 voz</div>' : ''}
+      <div class="msg-role">${role === 'user' ? 'tú' : 'parakeet'}</div>
+      <div class="msg-bubble">${formatMessage(content)}</div>
+    </div>
+  `;
+  msgs.appendChild(div);
+  scrollToBottom();
+  return div;
+}
+
+function appendThinking() {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'message assistant';
+  div.innerHTML = `
+    <div class="msg-avatar">🦜</div>
+    <div class="msg-content">
+      <div class="msg-role">parakeet</div>
+      <div class="thinking">
+        <div class="thinking-dots"><span></span><span></span><span></span></div>
+        pensando...
+      </div>
+    </div>
+  `;
+  msgs.appendChild(div);
+  scrollToBottom();
+  return div;
+}
+
+function scrollToBottom() {
+  const msgs = document.getElementById('messages');
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function sendSuggestion(text) {
+  document.getElementById('chat-input').value = text;
+  sendMessage();
+}
+
+// ──────────────────────────────────
+//  Voice recording
+// ──────────────────────────────────
+async function toggleRecording() {
+  if (isRecording) {
+    stopRecording();
+  } else {
+    startRecording();
+  }
+}
+
+async function startRecording() {
+  const whisperUrl = document.getElementById('whisper-url').value.trim();
+
+  // Try Whisper server first, else fallback to Web Speech API
+  if (whisperUrl) {
+    await startWhisperRecording(whisperUrl);
+  } else {
+    startWebSpeech();
+  }
+}
+
+async function startWhisperRecording(whisperUrl) {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+
+    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+    mediaRecorder.onstop = async () => {
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      stream.getTracks().forEach(t => t.stop());
+      await transcribeWhisper(blob, whisperUrl);
+    };
+
+    mediaRecorder.start();
+    isRecording = true;
+    updateRecordingUI(true);
+  } catch (err) {
+    showToast('No se pudo acceder al micrófono', 'error');
+  }
+}
+
+function startWebSpeech() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    showToast('Web Speech no disponible en este navegador', 'error');
+    return;
+  }
+
+  recognition = new SpeechRecognition();
+  recognition.lang = 'es-ES';
+  recognition.continuous = false;
+  recognition.interimResults = true;
+
+  recognition.onstart = () => {
+    isRecording = true;
+    updateRecordingUI(true);
+  };
+
+  recognition.onresult = e => {
+    let interim = '';
+    let final = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) final += e.results[i][0].transcript;
+      else interim += e.results[i][0].transcript;
+    }
+    document.getElementById('chat-input').value = final || interim;
+    autoResize(document.getElementById('chat-input'));
+  };
+
+  recognition.onend = () => {
+    isRecording = false;
+    updateRecordingUI(false);
+    const val = document.getElementById('chat-input').value.trim();
+    if (val) sendMessage(val);
+  };
+
+  recognition.onerror = () => {
+    isRecording = false;
+    updateRecordingUI(false);
+    showToast('Error en reconocimiento de voz', 'error');
+  };
+
+  recognition.start();
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+  }
+  if (recognition) {
+    recognition.stop();
+  }
+  isRecording = false;
+  updateRecordingUI(false);
+}
+
+async function transcribeWhisper(blob, whisperUrl) {
+  showToast('Transcribiendo con Whisper...', 'success');
+  const formData = new FormData();
+  formData.append('audio_file', blob, 'recording.webm');
+  formData.append('language', 'es');
+
+  try {
+    const res = await fetch(whisperUrl, { method: 'POST', body: formData });
+    const data = await res.json();
+    const text = data.text || data.transcription || '';
+    if (text) {
+      document.getElementById('chat-input').value = text;
+      autoResize(document.getElementById('chat-input'));
+      // Auto-send
+      sendMessage(text);
+    }
+  } catch {
+    showToast('Error al conectar Whisper server', 'error');
+  }
+}
+
+function updateRecordingUI(active) {
+  const btn = document.getElementById('mic-btn');
+  const viz = document.getElementById('voice-viz');
+  const status = document.getElementById('voice-status');
+  if (active) {
+    btn.className = 'input-action recording';
+    btn.textContent = '⏹';
+    viz.className = 'voice-visualizer active';
+    status.className = 'voice-status active';
+  } else {
+    btn.className = 'input-action';
+    btn.textContent = '🎙';
+    viz.className = 'voice-visualizer';
+    status.className = 'voice-status';
+  }
+}
+
+// ──────────────────────────────────
+//  Settings
+// ──────────────────────────────────
+function showSettings() {
+  document.getElementById('settings-modal').classList.add('show');
+  document.getElementById('ollama-url-input').value = OLLAMA_BASE;
+  document.getElementById('whisper-url-input').value = WHISPER_URL;
+}
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('show');
+}
+async function applySettings() {
+  const url = document.getElementById('ollama-url-input').value.trim().replace(/\/$/, '');
+  const wurl = document.getElementById('whisper-url-input').value.trim();
+  OLLAMA_BASE = url;
+  localStorage.setItem('ollama_url', url);
+  if (wurl) {
+    WHISPER_URL = wurl;
+    localStorage.setItem('whisper_url', wurl);
+    document.getElementById('whisper-url').value = wurl;
+  }
+  closeSettings();
+  await checkOllama();
+}
+
+// ──────────────────────────────────
+//  Utilities
+// ──────────────────────────────────
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 180) + 'px';
+}
+
+function clearChat() {
+  history = [];
+  const msgs = document.getElementById('messages');
+  msgs.innerHTML = `
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">🦜</div>
+      <h2>Parakeet AI</h2>
+      <p>Habla o escribe para comenzar.</p>
+      <div class="suggestions">
+        <button class="suggestion-chip" onclick="sendSuggestion('¿Qué puedes hacer?')">¿Qué puedes hacer?</button>
+        <button class="suggestion-chip" onclick="sendSuggestion('Escríbeme un poema corto')">Escríbeme un poema</button>
+        <button class="suggestion-chip" onclick="sendSuggestion('Explícame qué es una red neuronal')">Redes neuronales</button>
+      </div>
+    </div>
+  `;
+  showToast('Chat limpiado', 'success');
+}
+
+function exportChat() {
+  const data = JSON.stringify({ history, timestamp: new Date().toISOString() }, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `parakeet-${Date.now()}.json`;
+  a.click();
+  showToast('Exportado', 'success');
+}
+
+function copyLast() {
+  const last = history.filter(m => m.role === 'assistant').pop();
+  if (!last) return showToast('Sin respuesta que copiar', 'error');
+  navigator.clipboard.writeText(last.content);
+  showToast('Copiado al portapapeles', 'success');
+}
+
+function showToast(msg, type = '') {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = `toast show ${type}`;
+  setTimeout(() => toast.className = 'toast', 2500);
+}
+
+// ──────────────────────────────────
+//  Init
+// ──────────────────────────────────
+(async () => {
+  await checkOllama();
+  setInterval(checkOllama, 15000);
+})();
+</script>
+</body>
+</html>

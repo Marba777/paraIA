@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Parakeet — Settings</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #0d0d14;
+      color: #e0e0e0;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      -webkit-app-region: drag;
+    }
+
+    .title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      color: rgba(255,255,255,0.7);
+      text-transform: uppercase;
+    }
+
+    .close-btn {
+      -webkit-app-region: no-drag;
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.35);
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      padding: 2px 6px;
+      border-radius: 6px;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .close-btn:hover { background: rgba(255,255,255,0.08); color: #e0e0e0; }
+
+    .content {
+      padding: 24px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+      overflow-y: auto;
+      height: calc(100vh - 53px);
+    }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.3);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .setting-label {
+      font-size: 13px;
+      color: rgba(255,255,255,0.7);
+      min-width: 90px;
+    }
+
+    input[type=range] {
+      flex: 1;
+      height: 4px;
+      appearance: none;
+      -webkit-appearance: none;
+      background: rgba(255,255,255,0.12);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #4ade80;
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+
+    input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+    .setting-value {
+      font-size: 12px;
+      font-family: monospace;
+      color: #4ade80;
+      min-width: 36px;
+      text-align: right;
+    }
+
+    .theme-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .theme-card {
+      border-radius: 10px;
+      padding: 10px 8px;
+      text-align: center;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.2s;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .theme-card.active { border-color: #4ade80; }
+    .theme-card[data-theme=dark]  { background: rgba(8,8,12,0.8); color: #f0f0f0; }
+    .theme-card[data-theme=light] { background: rgba(245,245,250,0.9); color: #111; }
+    .theme-card[data-theme=blue]  { background: rgba(10,20,50,0.85); color: #cce; }
+    .theme-card[data-theme=green] { background: rgba(5,20,10,0.85); color: #cfd; }
+
+    .input-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    input[type=text] {
+      flex: 1;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: #e0e0e0;
+      font-size: 13px;
+      font-family: monospace;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type=text]:focus { border-color: rgba(74,222,128,0.5); }
+
+    /* ── System prompt textarea ── */
+    .prompt-textarea {
+      width: 100%;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: #e0e0e0;
+      font-size: 12px;
+      font-family: monospace;
+      outline: none;
+      resize: vertical;
+      min-height: 120px;
+      line-height: 1.6;
+      transition: border-color 0.2s;
+      user-select: text;
+    }
+
+    .prompt-textarea:focus { border-color: rgba(74,222,128,0.5); }
+
+    .prompt-hint {
+      font-size: 10px;
+      color: rgba(255,255,255,0.25);
+      margin-top: 6px;
+      line-height: 1.4;
+    }
+
+    /* Saved indicator */
+    .saved-badge {
+      display: inline-block;
+      font-size: 10px;
+      color: #4ade80;
+      opacity: 0;
+      margin-left: 8px;
+      transition: opacity 0.3s;
+    }
+    .saved-badge.show { opacity: 1; }
+
+    .hotkey-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .hotkey-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: rgba(255,255,255,0.55);
+    }
+
+    .hotkey-row kbd {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 5px;
+      padding: 2px 8px;
+      font-family: monospace;
+      font-size: 11px;
+      color: rgba(255,255,255,0.7);
+    }
+
+    select {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: #e0e0e0;
+      font-size: 13px;
+      outline: none;
+      width: 100%;
+      cursor: pointer;
+    }
+
+    select option { background: #1a1a2e; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+  </style>
+</head>
+<body>
+  <div class="titlebar">
+    <div class="title">🦜 Parakeet — Configuración</div>
+    <button class="close-btn" id="close">✕</button>
+  </div>
+
+  <div class="content">
+
+    <!-- Appearance -->
+    <div>
+      <div class="section-label">Apariencia</div>
+
+      <div class="setting-row" style="margin-bottom:16px">
+        <span class="setting-label">Opacidad</span>
+        <input type="range" id="opacity" min="20" max="98" value="78">
+        <span class="setting-value" id="opacity-val">78%</span>
+      </div>
+
+      <div class="setting-row">
+        <span class="setting-label">Tamaño texto</span>
+        <input type="range" id="fontsize" min="11" max="24" value="15">
+        <span class="setting-value" id="fontsize-val">15px</span>
+      </div>
+    </div>
+
+    <!-- Themes -->
+    <div>
+      <div class="section-label">Tema</div>
+      <div class="theme-grid">
+        <div class="theme-card active" data-theme="dark">Oscuro</div>
+        <div class="theme-card" data-theme="light">Claro</div>
+        <div class="theme-card" data-theme="blue">Azul</div>
+        <div class="theme-card" data-theme="green">Matrix</div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- AI Model -->
+    <div>
+      <div class="section-label">Modelo IA (Ollama)</div>
+      <select id="model">
+        <option value="llama3.2:1b">llama3.2:1b ⚡ más rápido</option>
+        <option value="llama3.2">llama3.2</option>
+        <option value="llama3">llama3</option>
+        <option value="llama3:70b">llama3:70b</option>
+        <option value="mistral">mistral</option>
+        <option value="gemma2">gemma2</option>
+        <option value="phi3">phi3</option>
+        <option value="codellama">codellama</option>
+      </select>
+    </div>
+
+    <!-- System Prompt -->
+    <div>
+      <div class="section-label">
+        Prompt del sistema
+        <span class="saved-badge" id="saved-badge">✓ guardado</span>
+      </div>
+      <textarea class="prompt-textarea" id="system-prompt">Eres un asistente de voz conversacional inteligente. Responde SIEMPRE en el mismo idioma que el usuario, ya sea español o inglés, de forma automática.
+
+COMPORTAMIENTO:
+- Respuestas explicativas, naturales y conversacionales
+- Si te preguntan cómo hacer algo, explica el concepto con palabras, no con código
+- Solo genera código si el usuario lo pide explícitamente con palabras como "escríbeme", "dame el código", "muéstrame cómo se escribe"
+- Máximo 3 párrafos, fluido como si estuvieras hablando
+- Nunca empieces una respuesta con bloques de código por defecto
+- Detecta automáticamente si el usuario habla en español o inglés y responde en ese mismo idioma</textarea>
+      <div class="prompt-hint">
+        💡 Este texto le dice al modelo cómo comportarse. Cámbialo según lo que necesites.
+      </div>
+    </div>
+
+    <!-- Connections -->
+    <div>
+      <div class="section-label">Conexiones</div>
+      <div class="input-row" style="margin-bottom:10px">
+        <span class="setting-label" style="font-size:12px;color:rgba(255,255,255,0.5)">Whisper</span>
+        <input type="text" id="whisper-url" value="http://localhost:9000">
+      </div>
+      <div class="input-row">
+        <span class="setting-label" style="font-size:12px;color:rgba(255,255,255,0.5)">Ollama</span>
+        <input type="text" id="ollama-url" value="http://localhost:11434">
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Hotkeys -->
+    <div>
+      <div class="section-label">Atajos de teclado</div>
+      <div class="hotkey-list">
+        <div class="hotkey-row">
+          <span>Mostrar / ocultar overlay</span>
+          <kbd>Ctrl+Shift+H</kbd>
+        </div>
+        <div class="hotkey-row">
+          <span>Toggle click-through</span>
+          <kbd>Ctrl+Shift+C</kbd>
+        </div>
+        <div class="hotkey-row">
+          <span>Abrir esta ventana</span>
+          <kbd>Ctrl+Shift+S</kbd>
+        </div>
+        <div class="hotkey-row">
+          <span>Cerrar Parakeet</span>
+          <kbd>Ctrl+Shift+X</kbd>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // ── Close ────────────────────────────────────────
+    document.getElementById('close').addEventListener('click', () => {
+      window.parakeet.closeSettings()
+    })
+
+    // ── Opacity ──────────────────────────────────────
+    const opacitySlider = document.getElementById('opacity')
+    const opacityVal    = document.getElementById('opacity-val')
+    opacitySlider.addEventListener('input', () => {
+      opacityVal.textContent = opacitySlider.value + '%'
+      window.parakeet.setOpacity(opacitySlider.value)
+    })
+
+    // ── Font size ────────────────────────────────────
+    const fontSlider = document.getElementById('fontsize')
+    const fontVal    = document.getElementById('fontsize-val')
+    fontSlider.addEventListener('input', () => {
+      fontVal.textContent = fontSlider.value + 'px'
+      window.parakeet.setFontSize(fontSlider.value)
+    })
+
+    // ── Theme ────────────────────────────────────────
+    document.querySelectorAll('.theme-card').forEach(card => {
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.theme-card').forEach(c => c.classList.remove('active'))
+        card.classList.add('active')
+        window.parakeet.setTheme(card.dataset.theme)
+      })
+    })
+
+    // ── Connections ──────────────────────────────────
+    document.getElementById('whisper-url').addEventListener('change', (e) => {
+      localStorage.setItem('whisper-url', e.target.value)
+      if (window.parakeet && window.parakeet.setWhisperUrl) {
+        window.parakeet.setWhisperUrl(e.target.value)
+      }
+    })
+    document.getElementById('ollama-url').addEventListener('change', (e) => {
+      localStorage.setItem('ollama-url', e.target.value)
+      if (window.parakeet && window.parakeet.setOllamaUrl) {
+        window.parakeet.setOllamaUrl(e.target.value)
+      }
+    })
+
+    // ── System prompt ────────────────────────────────
+    const promptArea  = document.getElementById('system-prompt')
+    const savedBadge  = document.getElementById('saved-badge')
+    let saveTimer     = null
+
+    // Load saved prompt (if any)
+    const savedPrompt = localStorage.getItem('system-prompt')
+    if (savedPrompt) promptArea.value = savedPrompt
+
+    // Auto-save while typing (debounced 600ms)
+    promptArea.addEventListener('input', () => {
+      clearTimeout(saveTimer)
+      saveTimer = setTimeout(() => {
+        localStorage.setItem('system-prompt', promptArea.value)
+        // Send to overlay in real time via IPC
+        window.parakeet.setSystemPrompt(promptArea.value)
+        // Show "guardado" badge briefly
+        savedBadge.classList.add('show')
+        setTimeout(() => savedBadge.classList.remove('show'), 1500)
+      }, 600)
+    })
+
+    // ── Model selector ───────────────────────────────
+    const modelSel    = document.getElementById('model')
+    const savedModel  = localStorage.getItem('ollama-model')
+    if (savedModel) modelSel.value = savedModel
+    modelSel.addEventListener('change', () => {
+      localStorage.setItem('ollama-model', modelSel.value)
+      window.parakeet.setModel(modelSel.value)
+    })
+
+    // ── Load all saved values on open ────────────────
+    const savedWhisper = localStorage.getItem('whisper-url')
+    const savedOllama  = localStorage.getItem('ollama-url')
+    if (savedWhisper) document.getElementById('whisper-url').value = savedWhisper
+    if (savedOllama)  document.getElementById('ollama-url').value  = savedOllama
+  </script>
+</body>
+</html>
